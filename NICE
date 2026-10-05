@@ -1,8 +1,15 @@
--- Blox Fruits Advanced Discord Notifier (Final Robust Version v3)
+-- Blox Fruits Advanced Discord Notifier (Universal Executor Compatible v4)
 
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1552377913238622251/kKXh-i41RJs4J51N233PIYqtirpPRZNhH42mQeljxWuLOzSMV8A0jAEgcEd6HJ3zWsms"
+
+-- 0. Universal Executor Detection
+local function getExecutorService(serviceName)
+    return game:GetService(serviceName)
+end
+
 local PLAYER = game.Players.LocalPlayer
 local PLAYER_NAME = PLAYER.Name
+local HttpService = getExecutorService("HttpService")
 
 -- 1. Helper: Get Account Age (Robust)
 local function getAccountAge()
@@ -54,151 +61,109 @@ end
 
 -- 3. Helper: Determine Rarity (Accurate)
 local function getRarity(itemName)
-    local name = itemName:lower()
+    local name = itemName:lower():gsub("%s", "")
     
-    -- Actual Current Fruits List (Approximate)
+    -- Comprehensive Fruit DB
     local fruitDb = {
         -- Mythical
-        ["Dough"] = "Mythical", ["Dragon"] = "Mythical", ["Venom"] = "Mythical", ["Blizzard"] = "Mythical",
-        ["T-Rex"] = "Mythical", ["Portal"] = "Mythical", ["Control"] = "Mythical", ["Leviathan"] = "Mythical",
-        ["Spirit"] = "Mythical", ["Dark"] = "Mythical", ["Yeti"] = "Mythical", ["Mammoth"] = "Mythical",
-        ["Pernida"] = "Mythical", ["Robin"] = "Mythical", ["Raider"] = "Mythical", ["Shark"] = "Mythical",
-        ["Bombardier"] = "Mythical", ["Awakening"] = "Mythical", ["Cursed Dual Katana"] = "Mythical",
-        ["Godhuman"] = "Mythical", ["Gold Rod"] = "Mythical", ["Last Resort"] = "Mythical",
-        ["Skull Guitar"] = "Mythical", ["Swan Glasses"] = "Mythical",
+        dough="Mythical", dragon="Mythical", venom="Mythical", blizzard="Mythical",
+        trex="Mythical", portal="Mythical", control="Mythical", leviathan="Mythical",
+        spirit="Mythical", dark="Mythical", yeti="Mythical", mammoth="Mythical",
+        pernida="Mythical", robin="Mythical", raider="Mythical", shark="Mythical",
+        bombardier="Mythical", awakening="Mythical", curseddualkatana="Mythical",
+        godhuman="Mythical", goldrod="Mythical", lastresort="Mythical",
+        skullguitar="Mythical", swanglasses="Mythical",
         
         -- Legendary
-        ["Ice"] = "Legendary", ["Flame"] = "Legendary", ["Smoke"] = "Legendary", ["Blade"] = "Legendary",
-        ["Light"] = "Legendary", ["Quake"] = "Legendary", ["Rubber"] = "Legendary", ["Spin"] = "Legendary",
-        ["Spider"] = "Legendary", ["Sound"] = "Legendary", ["Sand"] = "Legendary", ["Gravity"] = "Legendary",
-        ["Buddha"] = "Legendary", ["Phoenix"] = "Legendary", ["Lion"] = "Legendary", ["Bird"] = "Legendary",
-        ["Diamond"] = "Legendary", ["Magma"] = "Legendary", ["Ghost"] = "Legendary",
+        ice="Legendary", flame="Legendary", smoke="Legendary", blade="Legendary",
+        light="Legendary", quake="Legendary", rubber="Legendary", spin="Legendary",
+        spider="Legendary", sound="Legendary", sand="Legendary", gravity="Legendary",
+        buddha="Legendary", phoenix="Legendary", lion="Legendary", bird="Legendary",
+        diamond="Legendary", magma="Legendary", ghost="Legendary",
         
         -- Rare
-        ["Rope"] = "Rare", ["Falcon"] = "Rare", ["Soul"] = "Rare", ["Rumble"] = "Rare",
-        ["Panda"] = "Rare",
+        rope="Rare", falcon="Rare", soul="Rare", rumble="Rare",
+        panda="Rare",
         
         -- Uncommon
-        ["Leopard"] = "Uncommon", ["Boulder"] = "Uncommon",
+        leopard="Uncommon", boulder="Uncommon",
         
         -- Common
-        ["Spin"] = "Common", ["Flame"] = "Common", ["Ice"] = "Common"
+        -- Note: Many fruits appear in multiple rarities in BF history. 
+        -- This list prioritizes current common knowledge.
     }
     
-    -- Normalize name for lookup (remove spaces, lowercase)
-    local lookupName = name:gsub("%s", "")
-    
-    -- Try exact match first
-    for k, v in pairs(fruitDb) do
-        if k:lower():gsub("%s", "") == lookupName then
-            return v
-        end
-    end
-    
-    return "Unknown"
+    return fruitDb[name] or "Unknown"
 end
 
--- 4. Helper: Get Stored Fruits (From ReplicatedStorage & UI Fallback)
+-- 4. Helper: Get Stored Fruits (Multi-Source Scanner)
 local function getStoredFruits()
     local fruits = {}
     local seen = {}
     
-    -- Attempt 1: Check ReplicatedStorage for Inventory Data
+    -- Helper to add fruit safely
+    local function addFruit(name, qty)
+        if name and not seen[name] then
+            seen[name] = true
+            table.insert(fruits, {
+                name = name,
+                rarity = getRarity(name),
+                quantity = qty or 1
+            })
+        end
+    end
+
+    -- Attempt 1: ReplicatedStorage Data Model
     local replicatedStorage = game:GetService("ReplicatedStorage")
     
-    -- Common locations in BF: ReplicatedStorage/Inventory, ReplicatedStorage/PlayerData, or directly in ReplicatedStorage
-    local inventoryFolder = replicatedStorage:FindFirstChild("Inventory")
-    local playerData = replicatedStorage:FindFirstChild("PlayerData")
+    -- Check common inventory locations
+    local possibleFolders = {"Inventory", "PlayerData", "Data", "Fruits"}
     
-    -- Check Inventory Folder
-    if inventoryFolder then
-        for _, item in pairs(inventoryFolder:GetChildren()) do
-            if not seen[item.Name] then
-                seen[item.Name] = true
-                local qty = 1
+    for _, folderName in ipairs(possibleFolders) do
+        local folder = replicatedStorage:FindFirstChild(folderName)
+        if folder then
+            for _, item in pairs(folder:GetChildren()) do
+                -- If it's a ValueBase (IntValue, StringValue), use its Value
                 if item:IsA("ValueBase") then
-                    qty = item.Value
-                elseif item:GetAttribute("Quantity") then
-                    qty = item:GetAttribute("Quantity")
-                end
-                table.insert(fruits, {
-                    name = item.Name,
-                    rarity = getRarity(item.Name),
-                    quantity = qty
-                })
-            end
-        end
-    end
-    
-    -- Check PlayerData (Sometimes stores fruits as attributes or children)
-    if playerData and #fruits == 0 then
-        -- Some versions store data in attributes
-        local fruitsAttr = playerData:GetAttribute("Fruits")
-        if type(fruitsAttr) == "table" then
-            for fruitName, qty in pairs(fruitsAttr) do
-                if not seen[fruitName] then
-                    seen[fruitName] = true
-                    table.insert(fruits, {
-                        name = fruitName,
-                        rarity = getRarity(fruitName),
-                        quantity = qty
-                    })
+                    addFruit(item.Name, item.Value)
+                elseif item:IsA("Tool") then
+                    addFruit(item.Name, 1)
+                else
+                    -- Check attributes for quantity
+                    local qty = item:GetAttribute("Quantity") or item:GetAttribute("Count") or 1
+                    addFruit(item.Name, qty)
                 end
             end
         end
     end
-    
-    -- Attempt 2: UI Scraping Fallback (If Data Model is empty)
+
+    -- Attempt 2: PlayerGui UI Scraping (Fallback)
     if #fruits == 0 then
-        print("[BF Script] Data model empty. Attempting UI scrape...")
+        print("[BF Script] Data model empty. Scanning UI...")
         local playerGui = PLAYER:FindFirstChild("PlayerGui")
         if playerGui then
-            -- Find the Inventory GUI (Name varies, usually "Inventory" or "UI")
-            local inventoryGui = nil
-            for _, gui in pairs(playerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") then
-                    -- Look for a Frame named "Inventory" or similar
-                    for _, frame in pairs(gui:GetDescendants()) do
-                        if frame:IsA("Frame") and (frame.Name:lower():find("inventory") or frame.Name:lower():find("item")) then
-                            inventoryGui = frame
-                            break
-                        end
-                    end
-                    if inventoryGui then break end
-                end
-            end
-            
-            if inventoryGui then
-                -- Scrape TextLabels
-                for _, label in pairs(inventoryGui:GetDescendants()) do
-                    if label:IsA("TextLabel") and label.Text and label.Text ~= "" then
-                        -- Filter out UI text like "Inventory", "Close", etc.
-                        if not label.Text:lower():find("inventory") and not label.Text:lower():find("close") and not label.Text:lower():find("sell") and not label.Text:lower():find("buy") then
-                            if not seen[label.Text] then
-                                seen[label.Text] = true
-                                table.insert(fruits, {
-                                    name = label.Text,
-                                    rarity = getRarity(label.Text),
-                                    quantity = 1 -- UI scraping rarely gives quantity without deeper parsing
-                                })
-                            end
-                        end
+            for _, gui in pairs(playerGui:GetDescendants()) do
+                if gui:IsA("TextLabel") and gui.Text and gui.Text ~= "" then
+                    local text = gui.Text
+                    -- Filter out obvious UI labels
+                    if not text:lower():find("inventory") 
+                        and not text:lower():find("close") 
+                        and not text:lower():find("sell") 
+                        and not text:lower():find("buy")
+                        and not text:lower():find("equip")
+                        and not text:lower():find("quantity") then
+                        addFruit(text, 1)
                     end
                 end
             end
         end
     end
-    
-    -- Attempt 3: Backpack Fallback (Last Resort)
+
+    -- Attempt 3: Backpack (Last Resort)
     if #fruits == 0 and PLAYER.Backpack then
         for _, tool in pairs(PLAYER.Backpack:GetChildren()) do
-            if tool:IsA("Tool") and not seen[tool.Name] then
-                seen[tool.Name] = true
-                table.insert(fruits, {
-                    name = tool.Name,
-                    rarity = getRarity(tool.Name),
-                    quantity = 1
-                })
+            if tool:IsA("Tool") then
+                addFruit(tool.Name, 1)
             end
         end
     end
@@ -254,7 +219,7 @@ local function buildContent()
     return table.concat(lines, "\n")
 end
 
--- 6. Robust HTTP Sender
+-- 6. Robust HTTP Sender (Universal)
 local function sendToDiscord()
     local content = buildContent()
     
@@ -264,20 +229,27 @@ local function sendToDiscord()
         content = content
     }
     
-    local httpService = game:GetService("HttpService")
-    local encodedPayload = httpService:JSONEncode(payload)
+    local encodedPayload = HttpService:JSONEncode(payload)
 
+    -- Determine which HTTP function to use
     local httpFunc = nil
+    local funcName = "None"
+    
     if type(request) == "function" then
         httpFunc = request
+        funcName = "request"
     elseif type(http_request) == "function" then
         httpFunc = http_request
+        funcName = "http_request"
     elseif type(http) == "function" then
         httpFunc = http
+        funcName = "http"
     else
-        print("[BF Script] ❌ No HTTP function found in executor.")
+        print("[BF Script] ❌ No HTTP function found. Tried: request, http_request, http")
         return false
     end
+
+    print("[BF Script] Using HTTP function: " .. funcName)
 
     local success, response = pcall(function()
         return httpFunc({
