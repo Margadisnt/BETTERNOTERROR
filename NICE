@@ -1,190 +1,242 @@
--- Blox Fruits Advanced Discord Notifier (Final Precision v6)
+-- Blox Fruits Advanced Discord Notifier (Memory Scan v7)
 
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1552377913238622251/kKXh-i41RJs4J51N233PIYqtirpPRZNhH42mQeljxWuLOzSMV8A0jAEgcEd6HJ3zWsms"
 local PLAYER = game.Players.LocalPlayer
 local PLAYER_NAME = PLAYER.Name
 
--- 1. Helper: Get Account Age
-local function getAccountAge()
-    local createdDate = nil
-    pcall(function()
-        createdDate = PLAYER.Created
-    end)
-    if not createdDate then return "Unknown" end
-
-    local createdUnix
-    pcall(function()
-        createdUnix = createdDate.UnixTimestamp
-    end)
-    if not createdUnix then return "Unknown" end
-
-    local now = os.time()
-    local seconds = now - createdUnix
-    local days = math.floor(seconds / 86400)
-    local hours = math.floor((seconds % 86400) / 3600)
-    local minutes = math.floor((seconds % 3600) / 60)
+-- 1. Comprehensive Fruit Database (Current Meta)
+local FRUIT_DB = {
+    -- Mythical
+    ["Dough"] = "Mythical", ["Dragon"] = "Mythical", ["Venom"] = "Mythical", ["Blizzard"] = "Mythical",
+    ["T-Rex"] = "Mythical", ["Portal"] = "Mythical", ["Control"] = "Mythical", ["Leviathan"] = "Mythical",
+    ["Spirit"] = "Mythical", ["Dark"] = "Mythical", ["Yeti"] = "Mythical", ["Mammoth"] = "Mythical",
+    ["Pernida"] = "Mythical", ["Robin"] = "Mythical", ["Raider"] = "Mythical", ["Shark"] = "Mythical",
+    ["Bombardier"] = "Mythical", ["Awakening"] = "Mythical", ["Cursed Dual Katana"] = "Mythical",
+    ["Godhuman"] = "Mythical", ["Gold Rod"] = "Mythical", ["Last Resort"] = "Mythical",
+    ["Skull Guitar"] = "Mythical", ["Swan Glasses"] = "Mythical", ["Kitsune"] = "Mythical",
     
-    if days > 0 then return days .. "d"
-    elseif hours > 0 then return hours .. "h"
-    else return minutes .. "m" end
+    -- Legendary
+    ["Ice"] = "Legendary", ["Flame"] = "Legendary", ["Smoke"] = "Legendary", ["Blade"] = "Legendary",
+    ["Light"] = "Legendary", ["Quake"] = "Legendary", ["Rubber"] = "Legendary", ["Spin"] = "Legendary",
+    ["Spider"] = "Legendary", ["Sound"] = "Legendary", ["Sand"] = "Legendary", ["Gravity"] = "Legendary",
+    ["Buddha"] = "Legendary", ["Phoenix"] = "Legendary", ["Lion"] = "Legendary", ["Bird"] = "Legendary",
+    ["Diamond"] = "Legendary", ["Magma"] = "Legendary", ["Ghost"] = "Legendary", ["Rope"] = "Legendary",
+    
+    -- Rare
+    ["Falcon"] = "Rare", ["Soul"] = "Rare", ["Rumble"] = "Rare", ["Panda"] = "Rare",
+    
+    -- Uncommon
+    ["Leopard"] = "Uncommon", ["Boulder"] = "Uncommon", ["Rocket"] = "Uncommon",
+    
+    -- Common
+    ["Flame"] = "Common", ["Ice"] = "Common", ["Spin"] = "Common", ["Sand"] = "Common"
+}
+
+-- Helper: Check if a string is a known fruit
+local function isKnownFruit(name)
+    if type(name) ~= "string" then return false end
+    return FRUIT_DB[name] ~= nil
 end
 
--- 2. Helper: Get Sea Level
-local function getSeaLevel()
-    local char = PLAYER.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then
-        return "Unknown"
-    end
-    local z = char.HumanoidRootPart.Position.Z
-    if z < 2000 then return "1"
-    elseif z < 4000 then return "2"
-    else return "3" end
+-- Helper: Get Rarity
+local function getRarity(name)
+    return FRUIT_DB[name] or "Unknown"
 end
 
--- 3. Helper: Determine Rarity
-local function getRarity(itemName)
-    local name = itemName:lower():gsub("%s", "")
-    local fruitDb = {
-        -- Mythical
-        dough="Mythical", dragon="Mythical", venom="Mythical", blizzard="Mythical",
-        trex="Mythical", portal="Mythical", control="Mythical", leviathan="Mythical",
-        spirit="Mythical", dark="Mythical", yeti="Mythical", mammoth="Mythical",
-        pernida="Mythical", robin="Mythical", raider="Mythical", shark="Mythical",
-        bombardier="Mythical", awakening="Mythical", curseddualkatana="Mythical",
-        godhuman="Mythical", goldrod="Mythical", lastresort="Mythical",
-        skullguitar="Mythical", swanglasses="Mythical",
-        -- Legendary
-        ice="Legendary", flame="Legendary", smoke="Legendary", blade="Legendary",
-        light="Legendary", quake="Legendary", rubber="Legendary", spin="Legendary",
-        spider="Legendary", sound="Legendary", sand="Legendary", gravity="Legendary",
-        buddha="Legendary", phoenix="Legendary", lion="Legendary", bird="Legendary",
-        diamond="Legendary", magma="Legendary", ghost="Legendary",
-        -- Rare
-        rope="Rare", falcon="Rare", soul="Rare", rumble="Rare", panda="Rare",
-        -- Uncommon
-        leopard="Uncommon", boulder="Uncommon"
-    }
-    return fruitDb[name] or "Unknown"
-end
-
--- 4. Helper: Get Stored Fruits (Precision Scanner)
-local function getStoredFruits()
-    local fruits = {}
+-- 2. Memory Scanner (getgc)
+local function scanMemoryForFruits()
+    local foundFruits = {}
     local seen = {}
-    local maxItems = 25 -- Reduced limit to ensure safety
-
-    local function addFruit(name, qty)
-        if name and not seen[name] and #fruits < maxItems then
-            seen[name] = true
-            table.insert(fruits, {
-                name = name,
-                rarity = getRarity(name),
-                quantity = qty or 1
-            })
-        end
-    end
-
-    -- Attempt 1: ReplicatedStorage Data Model
-    local replicatedStorage = game:GetService("ReplicatedStorage")
-    local possibleFolders = {"Inventory", "PlayerData", "Data", "Fruits"}
     
-    for _, folderName in ipairs(possibleFolders) do
-        local folder = replicatedStorage:FindFirstChild(folderName)
-        if folder then
-            for _, item in pairs(folder:GetChildren()) do
-                if item:IsA("ValueBase") then
-                    addFruit(item.Name, item.Value)
-                elseif item:IsA("Tool") then
-                    addFruit(item.Name, 1)
-                else
-                    local qty = item:GetAttribute("Quantity") or item:GetAttribute("Count") or 1
-                    addFruit(item.Name, qty)
+    -- If getgc is not available, return empty
+    if type(getgc) ~= "function" then
+        print("[BF Script] getgc() not available in this executor.")
+        return foundFruits
+    end
+    
+    local gc = getgc()
+    
+    for _, obj in ipairs(gc) do
+        if type(obj) == "table" then
+            -- We are looking for a table that likely represents the inventory
+            -- Structure usually: { ["Fruits"] = { ["Kitsune"] = 1, ... } } 
+            -- OR a flat table: { ["Kitsune"] = 1, ["Dragon"] = 2 }
+            
+            for key, value in pairs(obj) do
+                -- Case 1: The key itself is a fruit name
+                if isKnownFruit(key) then
+                    -- Value should be a number (quantity) or a table with quantity
+                    local qty = 1
+                    if type(value) == "number" then
+                        qty = value
+                    elseif type(value) == "table" then
+                        -- Some structures store { Amount = 1 }
+                        if value.Amount then
+                            qty = value.Amount
+                        elseif value.Quantity then
+                            qty = value.Quantity
+                        end
+                    end
+                    
+                    if not seen[key] then
+                        seen[key] = true
+                        foundFruits[key] = qty
+                    end
+                end
+                
+                -- Case 2: The key is "Fruits" and the value is a table of fruits
+                if key == "Fruits" and type(value) == "table" then
+                    for fruitName, fruitQty in pairs(value) do
+                        if isKnownFruit(fruitName) then
+                            local qty = 1
+                            if type(fruitQty) == "number" then
+                                qty = fruitQty
+                            elseif type(fruitQty) == "table" and fruitQty.Amount then
+                                qty = fruitQty.Amount
+                            end
+                            
+                            if not seen[fruitName] then
+                                seen[fruitName] = true
+                                foundFruits[fruitName] = qty
+                            end
+                        end
+                    end
                 end
             end
         end
     end
+    
+    return foundFruits
+end
 
-    -- Attempt 2: UI Scraping (Targeted)
-    if #fruits == 0 then
-        print("[BF Script] Data model empty. Targeting Inventory UI...")
-        local playerGui = PLAYER:FindFirstChild("PlayerGui")
-        if playerGui then
-            -- Find the specific Inventory ScreenGui
-            local inventoryGui = nil
-            for _, gui in pairs(playerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") then
-                    -- Check for common inventory GUI names
-                    if gui.Name:lower():find("inventory") or gui.Name:lower():find("bag") or gui.Name:lower():find("storage") then
-                        inventoryGui = gui
-                        break
-                    end
-                    -- Fallback: Check if it has a Frame named "InventoryFrame"
-                    if gui:FindFirstChild("InventoryFrame") or gui:FindFirstChild("Inventory") then
-                        inventoryGui = gui
-                        break
-                    end
-                end
-            end
-            
-            if inventoryGui then
-                print("[BF Script] Found Inventory GUI: " .. inventoryGui.Name)
-                for _, label in pairs(inventoryGui:GetDescendants()) do
-                    if label:IsA("TextLabel") and label.Text and label.Text ~= "" and #fruits < maxItems then
-                        local text = label.Text
-                        local lowerText = text:lower()
-                        
-                        -- Strict Filtering for Inventory Items
-                        if not lowerText:find("inventory") 
-                            and not lowerText:find("close") 
-                            and not lowerText:find("sell") 
-                            and not lowerText:find("buy")
-                            and not lowerText:find("equip")
-                            and not lowerText:find("quantity")
-                            and not lowerText:find("points")
-                            and not lowerText:find("level")
-                            and not lowerText:find("health")
-                            and not lowerText:find("stamina")
-                            and not lowerText:find("fruits")
-                            and not lowerText:find("materials")
-                            and not lowerText:find("weapons")
-                            and #text > 2 and #text < 20 then -- Name length filter
-                            addFruit(text, 1)
+-- 3. Module Scanner (Require)
+local function scanModulesForFruits()
+    local foundFruits = {}
+    local seen = {}
+    
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    
+    -- Common module names in BF
+    local possibleModules = {"Inventory", "Modules", "Shared", "InventoryModule", "Data"}
+    
+    for _, modName in ipairs(possibleModules) do
+        local mod = replicatedStorage:FindFirstChild(modName)
+        if mod and mod:IsA("ModuleScript") then
+            pcall(function()
+                local inventoryData = require(mod)
+                -- The module might return a table directly
+                if type(inventoryData) == "table" then
+                    -- Check if it has a Fruits key
+                    if inventoryData.Fruits and type(inventoryData.Fruits) == "table" then
+                        for fruitName, qty in pairs(inventoryData.Fruits) do
+                            if isKnownFruit(fruitName) and not seen[fruitName] then
+                                seen[fruitName] = true
+                                local q = 1
+                                if type(qty) == "number" then q = qty
+                                elseif type(qty) == "table" and qty.Amount then q = qty.Amount
+                                end
+                                foundFruits[fruitName] = q
+                            end
+                        end
+                    else
+                        -- Check if it's a flat table of fruits
+                        for key, value in pairs(inventoryData) do
+                            if isKnownFruit(key) and not seen[key] then
+                                seen[key] = true
+                                local q = 1
+                                if type(value) == "number" then q = value
+                                elseif type(value) == "table" and value.Amount then q = value.Amount
+                                end
+                                foundFruits[key] = q
+                            end
                         end
                     end
                 end
-            else
-                print("[BF Script] No specific Inventory GUI found. Falling back to Backpack.")
-                if PLAYER.Backpack then
-                    for _, tool in pairs(PLAYER.Backpack:GetChildren()) do
-                        if tool:IsA("Tool") then
-                            addFruit(tool.Name, 1)
-                        end
-                    end
+            end)
+        end
+    end
+    
+    return foundFruits
+end
+
+-- 4. UI Fallback (Last Resort)
+local function scanUIForFruits()
+    local foundFruits = {}
+    local seen = {}
+    local playerGui = PLAYER:FindFirstChild("PlayerGui")
+    
+    if playerGui then
+        for _, gui in pairs(playerGui:GetDescendants()) do
+            if gui:IsA("TextLabel") and gui.Text and gui.Text ~= "" then
+                local text = gui.Text
+                if isKnownFruit(text) and not seen[text] then
+                    seen[text] = true
+                    foundFruits[text] = 1
                 end
             end
         end
+    end
+    return foundFruits
+end
+
+-- 5. Main Get Fruits Function
+local function getStoredFruits()
+    print("[BF Script] Scanning Memory (getgc)...")
+    local fruits = scanMemoryForFruits()
+    
+    if next(fruits) == nil then
+        print("[BF Script] Memory scan empty. Scanning Modules...")
+        fruits = scanModulesForFruits()
+    end
+    
+    if next(fruits) == nil then
+        print("[BF Script] Module scan empty. Scanning UI...")
+        fruits = scanUIForFruits()
+    end
+    
+    -- Convert table to list for sorting
+    local fruitList = {}
+    for name, qty in pairs(fruits) do
+        table.insert(fruitList, {
+            name = name,
+            rarity = getRarity(name),
+            quantity = qty
+        })
     end
     
     -- Sort
     local rarityOrder = {["Mythical"] = 1, ["Legendary"] = 2, ["Rare"] = 3, ["Uncommon"] = 4, ["Common"] = 5, ["Unknown"] = 6}
-    table.sort(fruits, function(a, b)
+    table.sort(fruitList, function(a, b)
         local orderA = rarityOrder[a.rarity] or 7
         local orderB = rarityOrder[b.rarity] or 7
         if orderA ~= orderB then return orderA < orderB end
         return a.name < b.name
     end)
     
-    return fruits
+    return fruitList
 end
 
--- 5. Build Message Content
+-- 6. Account Age & Sea Level
+local function getAccountAge()
+    local createdDate = PLAYER.Created
+    local now = os.time()
+    local seconds = now - createdDate.UnixTimestamp
+    local days = math.floor(seconds / 86400)
+    if days > 0 then return days .. "d" else return math.floor(seconds/3600) .. "h" end
+end
+
+local function getSeaLevel()
+    local char = PLAYER.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return "Unknown" end
+    local z = char.HumanoidRootPart.Position.Z
+    if z < 2000 then return "1" elseif z < 4000 then return "2" else return "3" end
+end
+
+-- 7. Build Content
 local function buildContent()
-    local accountAge = getAccountAge()
-    local seaLevel = getSeaLevel()
     local fruits = getStoredFruits()
-    
     local lines = {}
-    table.insert(lines, "**" .. PLAYER_NAME .. "** | Age: " .. accountAge .. " | Sea: " .. seaLevel)
+    table.insert(lines, "**" .. PLAYER_NAME .. "** | Age: " .. getAccountAge() .. " | Sea: " .. getSeaLevel())
     table.insert(lines, "Fruits (" .. #fruits .. "):")
     
     if #fruits > 0 then
@@ -195,20 +247,16 @@ local function buildContent()
         table.insert(lines, "❌ No fruits found.")
     end
     
-    local finalContent = table.concat(lines, "\n")
-    
-    -- Safety Check: If still too long, truncate
-    if #finalContent > 1900 then
-        finalContent = finalContent:sub(1, 1900) .. "\n... [Truncated]"
+    local content = table.concat(lines, "\n")
+    if #content > 1900 then
+        content = content:sub(1, 1900) .. "\n... [Truncated]"
     end
-    
-    return finalContent
+    return content
 end
 
--- 6. Robust HTTP Sender
+-- 8. Send to Discord
 local function sendToDiscord()
     local content = buildContent()
-    
     local payload = {
         username = "BF Notifier",
         avatar_url = "https://bloxfruits.fandom.com/wiki/Blox_Fruits?action=raw&file=Blox_Fruits_Logo.png",
@@ -217,19 +265,17 @@ local function sendToDiscord()
     
     local httpService = game:GetService("HttpService")
     local encodedPayload = httpService:JSONEncode(payload)
-
+    
     local httpFunc = nil
-    if type(request) == "function" then
-        httpFunc = request
-    elseif type(http_request) == "function" then
-        httpFunc = http_request
-    elseif type(http) == "function" then
-        httpFunc = http
-    else
-        print("[BF Script] ❌ No HTTP function found.")
+    if type(request) == "function" then httpFunc = request
+    elseif type(http_request) == "function" then httpFunc = http_request
+    elseif type(http) == "function" then httpFunc = http end
+    
+    if not httpFunc then
+        print("❌ No HTTP function found.")
         return false
     end
-
+    
     local success, response = pcall(function()
         return httpFunc({
             Url = WEBHOOK_URL,
@@ -238,50 +284,36 @@ local function sendToDiscord()
             Body = encodedPayload
         })
     end)
-
+    
     if success and response and response.Success then
-        print("[BF Script] ✅ Successfully sent to Discord.")
+        print("✅ Successfully sent to Discord.")
         return true
     else
-        print("[BF Script] ❌ Failed to send.")
-        if not success then
-            print("Error: " .. tostring(response))
-        else
-            print("Status: " .. tostring(response.StatusCode))
-            print("Body: " .. tostring(response.Body))
-        end
+        print("❌ Failed to send.")
+        if not success then print("Error: " .. tostring(response))
+        else print("Status: " .. response.StatusCode .. " Body: " .. response.Body) end
         return false
     end
 end
 
--- 7. HUD Display
+-- 9. HUD
 local function displayHUD()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "BF_AdvancedHUD"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = game:GetService("CoreGui")
-
+    
     local frame = Instance.new("Frame")
-    frame.Name = "MainFrame"
     frame.Size = UDim2.fromOffset(350, 80)
     frame.Position = UDim2.fromScale(0.5, 0.05)
     frame.AnchorPoint = Vector2.new(0.5, 0)
     frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    frame.BorderSizePixel = 0
     frame.Parent = screenGui
-
+    
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 10)
     corner.Parent = frame
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(100, 100, 255)
-    stroke.Thickness = 2
-    stroke.Parent = frame
-
+    
     local title = Instance.new("TextLabel")
-    title.Name = "Title"
     title.Size = UDim2.new(1, -10, 0, 25)
     title.Position = UDim2.new(0, 5, 0, 5)
     title.BackgroundTransparency = 1
@@ -289,11 +321,9 @@ local function displayHUD()
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.TextScaled = true
     title.Font = Enum.Font.GothamMedium
-    title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = frame
-
+    
     local status = Instance.new("TextLabel")
-    status.Name = "Status"
     status.Size = UDim2.new(1, -10, 0, 25)
     status.Position = UDim2.new(0, 5, 0, 35)
     status.BackgroundTransparency = 1
@@ -301,12 +331,9 @@ local function displayHUD()
     status.TextColor3 = Color3.fromRGB(150, 255, 150)
     status.TextScaled = true
     status.Font = Enum.Font.Gotham
-    status.TextXAlignment = Enum.TextXAlignment.Left
-    status.TextYAlignment = Enum.TextYAlignment.Top
     status.Parent = frame
-
+    
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Name = "CloseBtn"
     closeBtn.Size = UDim2.fromOffset(35, 35)
     closeBtn.Position = UDim2.fromScale(1, 0.5)
     closeBtn.AnchorPoint = Vector2.new(1, 0.5)
@@ -315,29 +342,20 @@ local function displayHUD()
     closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     closeBtn.TextScaled = true
     closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.BorderSizePixel = 0
     closeBtn.Parent = frame
-
+    
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0, 8)
     btnCorner.Parent = closeBtn
-
+    
     closeBtn.MouseButton1Click:Connect(function()
         screenGui:Destroy()
     end)
 end
 
--- 8. Execute
-print("=== Blox Fruits Advanced Notifier ===")
-print("Scanning inventory...")
+-- 10. Execute
+print("=== Blox Fruits Advanced Notifier (Memory Scan) ===")
 task.wait(2)
-
 local sendSuccess = sendToDiscord()
-
-if sendSuccess then
-    print("✅ Status sent.")
-else
-    print("❌ Failed to send.")
-end
-
+if sendSuccess then print("✅ Done.") else print("❌ Failed.") end
 displayHUD()
