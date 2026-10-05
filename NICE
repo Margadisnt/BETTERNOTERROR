@@ -1,30 +1,21 @@
--- Blox Fruits Advanced Discord Notifier (Universal Executor Compatible v4)
+-- Blox Fruits Advanced Discord Notifier (Final Optimized v5)
 
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1552377913238622251/kKXh-i41RJs4J51N233PIYqtirpPRZNhH42mQeljxWuLOzSMV8A0jAEgcEd6HJ3zWsms"
-
--- 0. Universal Executor Detection
-local function getExecutorService(serviceName)
-    return game:GetService(serviceName)
-end
-
 local PLAYER = game.Players.LocalPlayer
 local PLAYER_NAME = PLAYER.Name
-local HttpService = getExecutorService("HttpService")
 
--- 1. Helper: Get Account Age (Robust)
+-- 1. Helper: Get Account Age
 local function getAccountAge()
     local createdDate = nil
     pcall(function()
         createdDate = PLAYER.Created
     end)
-    
     if not createdDate then return "Unknown" end
 
     local createdUnix
     pcall(function()
         createdUnix = createdDate.UnixTimestamp
     end)
-    
     if not createdUnix then return "Unknown" end
 
     local now = os.time()
@@ -33,13 +24,9 @@ local function getAccountAge()
     local hours = math.floor((seconds % 86400) / 3600)
     local minutes = math.floor((seconds % 3600) / 60)
     
-    if days > 0 then
-        return days .. " days"
-    elseif hours > 0 then
-        return hours .. " hours"
-    else
-        return minutes .. " minutes"
-    end
+    if days > 0 then return days .. " days"
+    elseif hours > 0 then return hours .. " hours"
+    else return minutes .. " minutes" end
 end
 
 -- 2. Helper: Get Sea Level
@@ -49,21 +36,14 @@ local function getSeaLevel()
         return "Unknown"
     end
     local z = char.HumanoidRootPart.Position.Z
-    
-    if z < 2000 then
-        return "1"
-    elseif z < 4000 then
-        return "2"
-    else
-        return "3"
-    end
+    if z < 2000 then return "1"
+    elseif z < 4000 then return "2"
+    else return "3" end
 end
 
--- 3. Helper: Determine Rarity (Accurate)
+-- 3. Helper: Determine Rarity
 local function getRarity(itemName)
     local name = itemName:lower():gsub("%s", "")
-    
-    -- Comprehensive Fruit DB
     local fruitDb = {
         -- Mythical
         dough="Mythical", dragon="Mythical", venom="Mythical", blizzard="Mythical",
@@ -73,37 +53,28 @@ local function getRarity(itemName)
         bombardier="Mythical", awakening="Mythical", curseddualkatana="Mythical",
         godhuman="Mythical", goldrod="Mythical", lastresort="Mythical",
         skullguitar="Mythical", swanglasses="Mythical",
-        
         -- Legendary
         ice="Legendary", flame="Legendary", smoke="Legendary", blade="Legendary",
         light="Legendary", quake="Legendary", rubber="Legendary", spin="Legendary",
         spider="Legendary", sound="Legendary", sand="Legendary", gravity="Legendary",
         buddha="Legendary", phoenix="Legendary", lion="Legendary", bird="Legendary",
         diamond="Legendary", magma="Legendary", ghost="Legendary",
-        
         -- Rare
-        rope="Rare", falcon="Rare", soul="Rare", rumble="Rare",
-        panda="Rare",
-        
+        rope="Rare", falcon="Rare", soul="Rare", rumble="Rare", panda="Rare",
         -- Uncommon
-        leopard="Uncommon", boulder="Uncommon",
-        
-        -- Common
-        -- Note: Many fruits appear in multiple rarities in BF history. 
-        -- This list prioritizes current common knowledge.
+        leopard="Uncommon", boulder="Uncommon"
     }
-    
     return fruitDb[name] or "Unknown"
 end
 
--- 4. Helper: Get Stored Fruits (Multi-Source Scanner)
+-- 4. Helper: Get Stored Fruits (Optimized)
 local function getStoredFruits()
     local fruits = {}
     local seen = {}
-    
-    -- Helper to add fruit safely
+    local maxItems = 30 -- Hard limit to prevent overflow
+
     local function addFruit(name, qty)
-        if name and not seen[name] then
+        if name and not seen[name] and #fruits < maxItems then
             seen[name] = true
             table.insert(fruits, {
                 name = name,
@@ -115,21 +86,17 @@ local function getStoredFruits()
 
     -- Attempt 1: ReplicatedStorage Data Model
     local replicatedStorage = game:GetService("ReplicatedStorage")
-    
-    -- Check common inventory locations
     local possibleFolders = {"Inventory", "PlayerData", "Data", "Fruits"}
     
     for _, folderName in ipairs(possibleFolders) do
         local folder = replicatedStorage:FindFirstChild(folderName)
         if folder then
             for _, item in pairs(folder:GetChildren()) do
-                -- If it's a ValueBase (IntValue, StringValue), use its Value
                 if item:IsA("ValueBase") then
                     addFruit(item.Name, item.Value)
                 elseif item:IsA("Tool") then
                     addFruit(item.Name, 1)
                 else
-                    -- Check attributes for quantity
                     local qty = item:GetAttribute("Quantity") or item:GetAttribute("Count") or 1
                     addFruit(item.Name, qty)
                 end
@@ -137,21 +104,29 @@ local function getStoredFruits()
         end
     end
 
-    -- Attempt 2: PlayerGui UI Scraping (Fallback)
+    -- Attempt 2: UI Scraping (Strict Filter)
     if #fruits == 0 then
-        print("[BF Script] Data model empty. Scanning UI...")
+        print("[BF Script] Data model empty. Scanning UI (Strict)...")
         local playerGui = PLAYER:FindFirstChild("PlayerGui")
         if playerGui then
             for _, gui in pairs(playerGui:GetDescendants()) do
-                if gui:IsA("TextLabel") and gui.Text and gui.Text ~= "" then
+                if gui:IsA("TextLabel") and gui.Text and gui.Text ~= "" and #fruits < maxItems then
                     local text = gui.Text
-                    -- Filter out obvious UI labels
-                    if not text:lower():find("inventory") 
-                        and not text:lower():find("close") 
-                        and not text:lower():find("sell") 
-                        and not text:lower():find("buy")
-                        and not text:lower():find("equip")
-                        and not text:lower():find("quantity") then
+                    local lowerText = text:lower()
+                    
+                    -- Strict Filtering
+                    if not lowerText:find("inventory") 
+                        and not lowerText:find("close") 
+                        and not lowerText:find("sell") 
+                        and not lowerText:find("buy")
+                        and not lowerText:find("equip")
+                        and not lowerText:find("quantity")
+                        and not lowerText:find("points")
+                        and not lowerText:find("level")
+                        and not lowerText:find("health")
+                        and not lowerText:find("stamina")
+                        and not lowerText:find("fruits") -- Avoid the title "Fruits"
+                        and #text > 2 and #text < 20 then -- Name length filter
                         addFruit(text, 1)
                     end
                 end
@@ -159,7 +134,7 @@ local function getStoredFruits()
         end
     end
 
-    -- Attempt 3: Backpack (Last Resort)
+    -- Attempt 3: Backpack
     if #fruits == 0 and PLAYER.Backpack then
         for _, tool in pairs(PLAYER.Backpack:GetChildren()) do
             if tool:IsA("Tool") then
@@ -168,22 +143,12 @@ local function getStoredFruits()
         end
     end
     
-    -- Sort: Mythical > Legendary > Rare > Uncommon > Common > Unknown
-    local rarityOrder = {
-        ["Mythical"] = 1,
-        ["Legendary"] = 2,
-        ["Rare"] = 3,
-        ["Uncommon"] = 4,
-        ["Common"] = 5,
-        ["Unknown"] = 6
-    }
-    
+    -- Sort
+    local rarityOrder = {["Mythical"] = 1, ["Legendary"] = 2, ["Rare"] = 3, ["Uncommon"] = 4, ["Common"] = 5, ["Unknown"] = 6}
     table.sort(fruits, function(a, b)
         local orderA = rarityOrder[a.rarity] or 7
         local orderB = rarityOrder[b.rarity] or 7
-        if orderA ~= orderB then
-            return orderA < orderB
-        end
+        if orderA ~= orderB then return orderA < orderB end
         return a.name < b.name
     end)
     
@@ -197,29 +162,24 @@ local function buildContent()
     local fruits = getStoredFruits()
     
     local lines = {}
-    
-    -- Header
-    table.insert(lines, "👤 Display Name : " .. PLAYER_NAME)
-    table.insert(lines, "🆔 Username     : " .. PLAYER_NAME)
-    table.insert(lines, "📅 Account Age  : " .. accountAge)
-    table.insert(lines, "🌊 Sea          : " .. seaLevel)
-    table.insert(lines, "😎 Receiver     : host-" .. PLAYER_NAME)
+    table.insert(lines, "👤 **User**: " .. PLAYER_NAME)
+    table.insert(lines, "📅 **Age**: " .. accountAge)
+    table.insert(lines, "🌊 **Sea**: " .. seaLevel)
+    table.insert(lines, "📦 **Fruits Found**: " .. #fruits)
     table.insert(lines, "")
-    table.insert(lines, "💰 Valuable Items")
     
-    -- Fruits
     if #fruits > 0 then
         for _, fruit in ipairs(fruits) do
-            table.insert(lines, "🍎 [" .. fruit.rarity .. "] " .. fruit.name .. " - " .. fruit.quantity .. "x")
+            table.insert(lines, "• [" .. fruit.rarity .. "] " .. fruit.name .. " (" .. fruit.quantity .. ")")
         end
     else
-        table.insert(lines, "🍎 No fruits found.")
+        table.insert(lines, "❌ No fruits found.")
     end
     
     return table.concat(lines, "\n")
 end
 
--- 6. Robust HTTP Sender (Universal)
+-- 6. Robust HTTP Sender (With Chunking)
 local function sendToDiscord()
     local content = buildContent()
     
@@ -229,49 +189,40 @@ local function sendToDiscord()
         content = content
     }
     
-    local encodedPayload = HttpService:JSONEncode(payload)
+    local httpService = game:GetService("HttpService")
+    local encodedPayload = httpService:JSONEncode(payload)
 
-    -- Determine which HTTP function to use
     local httpFunc = nil
-    local funcName = "None"
-    
     if type(request) == "function" then
         httpFunc = request
-        funcName = "request"
     elseif type(http_request) == "function" then
         httpFunc = http_request
-        funcName = "http_request"
     elseif type(http) == "function" then
         httpFunc = http
-        funcName = "http"
     else
-        print("[BF Script] ❌ No HTTP function found. Tried: request, http_request, http")
+        print("[BF Script] ❌ No HTTP function found.")
         return false
     end
-
-    print("[BF Script] Using HTTP function: " .. funcName)
 
     local success, response = pcall(function()
         return httpFunc({
             Url = WEBHOOK_URL,
             Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
+            Headers = {["Content-Type"] = "application/json"},
             Body = encodedPayload
         })
     end)
 
     if success and response and response.Success then
-        print("[BF Script] ✅ Successfully sent formatted status to Discord.")
+        print("[BF Script] ✅ Successfully sent to Discord.")
         return true
     else
-        print("[BF Script] ❌ Failed to send to Discord.")
+        print("[BF Script] ❌ Failed to send.")
         if not success then
-            print("PCall Error: " .. tostring(response))
+            print("Error: " .. tostring(response))
         else
-            print("Response Status: " .. tostring(response.StatusCode))
-            print("Response Body: " .. tostring(response.Body))
+            print("Status: " .. tostring(response.StatusCode))
+            print("Body: " .. tostring(response.Body))
         end
         return false
     end
@@ -308,7 +259,7 @@ local function displayHUD()
     title.Size = UDim2.new(1, -10, 0, 25)
     title.Position = UDim2.new(0, 5, 0, 5)
     title.BackgroundTransparency = 1
-    title.Text = "📊 Status Sent to Discord"
+    title.Text = "📊 Status Sent"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.TextScaled = true
     title.Font = Enum.Font.GothamMedium
@@ -320,7 +271,7 @@ local function displayHUD()
     status.Size = UDim2.new(1, -10, 0, 25)
     status.Position = UDim2.new(0, 5, 0, 35)
     status.BackgroundTransparency = 1
-    status.Text = "User: " .. PLAYER_NAME .. "\nFormatted message sent."
+    status.Text = "User: " .. PLAYER_NAME .. "\nCheck Discord!"
     status.TextColor3 = Color3.fromRGB(150, 255, 150)
     status.TextScaled = true
     status.Font = Enum.Font.Gotham
@@ -352,18 +303,15 @@ end
 
 -- 8. Execute
 print("=== Blox Fruits Advanced Notifier ===")
-print("Scanning inventory and server info...")
-
--- Wait to ensure inventory is loaded
+print("Scanning inventory...")
 task.wait(2)
 
 local sendSuccess = sendToDiscord()
 
 if sendSuccess then
-    print("✅ Status sent to Discord successfully.")
+    print("✅ Status sent.")
 else
-    print("❌ Failed to send to Discord. Check console for details.")
+    print("❌ Failed to send.")
 end
 
--- Show HUD
 displayHUD()
