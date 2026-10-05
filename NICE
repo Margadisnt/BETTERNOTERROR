@@ -56,21 +56,6 @@ end
 local function getRarity(itemName)
     local name = itemName:lower()
     
-    -- Mythical
-    local mythicals = {"dough", "dragon", "venom", "blizzard", "t-rex", "portal", "control", "leviathan", "spirit", "dark", "yeti", "mammoth", "pernida", "robin", "raider", "shark", "bombardier", "awakening", "cursed dual katana", "godhuman", "gold rod", "last resort", "skull guitar", "swan glasses", "ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird"}
-    -- Legendary
-    local legendaries = {"ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird", "diamond", "magma", "ghost", "ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird"}
-    -- Rare
-    local rares = {"ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird", "diamond", "magma", "ghost", "ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird"}
-    -- Uncommon
-    local uncommons = {"ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird", "diamond", "magma", "ghost", "ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird"}
-    -- Common
-    local commons = {"ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird", "diamond", "magma", "ghost", "ice", "flame", "smoke", "blade", "light", "quake", "rubber", "spin", "spider", "sound", "sand", "gravity", "buddha", "phoenix", "lion", "bird"}
-    
-    -- NOTE: In a real production script, you would replace these placeholder lists 
-    -- with the actual current Blox Fruits fruit lists. 
-    -- For now, this uses a heuristic based on common knowledge of current fruits.
-    
     -- Actual Current Fruits List (Approximate)
     local fruitDb = {
         -- Mythical
@@ -91,11 +76,10 @@ local function getRarity(itemName)
         
         -- Rare
         ["Rope"] = "Rare", ["Falcon"] = "Rare", ["Soul"] = "Rare", ["Rumble"] = "Rare",
-        ["Mammoth"] = "Rare", -- Note: Mammoth is actually Mythical, but some versions classify differently
-        ["Panda"] = "Rare", ["Dough"] = "Rare", -- Placeholder, replace with actual Rare fruits
+        ["Panda"] = "Rare",
         
         -- Uncommon
-        ["Leopard"] = "Uncommon", ["Boulder"] = "Uncommon", ["Blade"] = "Uncommon",
+        ["Leopard"] = "Uncommon", ["Boulder"] = "Uncommon",
         
         -- Common
         ["Spin"] = "Common", ["Flame"] = "Common", ["Ice"] = "Common"
@@ -335,3 +319,79 @@ local function displayHUD()
     frame.Position = UDim2.fromScale(0.5, 0.05)
     frame.AnchorPoint = Vector2.new(0.5, 0)
     frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(100, 100, 255)
+    stroke.Thickness = 2
+    stroke.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -10, 0, 25)
+    title.Position = UDim2.new(0, 5, 0, 5)
+    title.BackgroundTransparency = 1
+    title.Text = "📊 Status Sent to Discord"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextScaled = true
+    title.Font = Enum.Font.GothamMedium
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = frame
+
+    local status = Instance.new("TextLabel")
+    status.Name = "Status"
+    status.Size = UDim2.new(1, -10, 0, 25)
+    status.Position = UDim2.new(0, 5, 0, 35)
+    status.BackgroundTransparency = 1
+    status.Text = "User: " .. PLAYER_NAME .. "\nFormatted message sent."
+    status.TextColor3 = Color3.fromRGB(150, 255, 150)
+    status.TextScaled = true
+    status.Font = Enum.Font.Gotham
+    status.TextXAlignment = Enum.TextXAlignment.Left
+    status.TextYAlignment = Enum.TextYAlignment.Top
+    status.Parent = frame
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Size = UDim2.fromOffset(35, 35)
+    closeBtn.Position = UDim2.fromScale(1, 0.5)
+    closeBtn.AnchorPoint = Vector2.new(1, 0.5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.TextScaled = true
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.BorderSizePixel = 0
+    closeBtn.Parent = frame
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = closeBtn
+
+    closeBtn.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+end
+
+-- 8. Execute
+print("=== Blox Fruits Advanced Notifier ===")
+print("Scanning inventory and server info...")
+
+-- Wait to ensure inventory is loaded
+task.wait(2)
+
+local sendSuccess = sendToDiscord()
+
+if sendSuccess then
+    print("✅ Status sent to Discord successfully.")
+else
+    print("❌ Failed to send to Discord. Check console for details.")
+end
+
+-- Show HUD
+displayHUD()
