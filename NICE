@@ -104,52 +104,75 @@ local function getRarity(tool)
     return "Unknown"
 end
 
--- 4. Helper: Get Stored Fruits (Only Backpack by default, toggle for equipped)
-local function getStoredFruits(includeEquipped)
+-- 4. Helper: Get Stored Fruits (From ReplicatedStorage Inventory)
+local function getStoredFruits()
     local fruits = {}
     local seen = {}
     
-    local function processTool(tool)
-        if seen[tool.Name] then return end
-        seen[tool.Name] = true
+    -- 1. Access ReplicatedStorage Inventory
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local dataFolder = replicatedStorage:FindFirstChild("Data")
+    local inventoryFolder = dataFolder and dataFolder:FindFirstChild("Inventory")
+    
+    if not inventoryFolder then
+        -- Fallback: Try Backpack if Data folder doesn't exist
+        print("[BF Script] ⚠️ ReplicatedStorage Inventory not found. Falling back to Backpack.")
+        if PLAYER.Backpack then
+            for _, tool in pairs(PLAYER.Backpack:GetChildren()) do
+                if tool:IsA("Tool") then
+                    if not seen[tool.Name] then
+                        seen[tool.Name] = true
+                        table.insert(fruits, {
+                            name = tool.Name,
+                            rarity = getRarity(tool),
+                            quantity = 1
+                        })
+                    end
+                end
+            end
+        end
+        return fruits
+    end
+    
+    -- 2. Scan Inventory Folder
+    for _, item in pairs(inventoryFolder:GetChildren()) do
+        -- Skip non-Tool or non-Value instances
+        if not item:IsA("Tool") and not item:IsA("ValueBase") then
+            continue
+        end
         
-        local rarity = getRarity(tool)
+        local itemName = item.Name
+        if seen[itemName] then continue end
+        seen[itemName] = true
+        
+        -- Determine Rarity
+        local rarity = getRarity(item)
+        
+        -- Determine Quantity
         local quantity = 1
-        local qtyAttrs = {"Quantity", "Count", "Amount"}
-        for _, attrName in ipairs(qtyAttrs) do
-            local attrVal = tool:GetAttribute(attrName)
-            if attrVal and type(attrVal) == "number" then
-                quantity = attrVal
-                break
+        if item:IsA("ValueBase") then
+            -- If it's a ValueBase (e.g., IntValue), the Value is the quantity
+            quantity = item.Value
+        else
+            -- If it's a Tool, check for Quantity attribute
+            local qtyAttrs = {"Quantity", "Count", "Amount"}
+            for _, attrName in ipairs(qtyAttrs) do
+                local attrVal = item:GetAttribute(attrName)
+                if attrVal and type(attrVal) == "number" then
+                    quantity = attrVal
+                    break
+                end
             end
         end
         
         table.insert(fruits, {
-            name = tool.Name,
+            name = itemName,
             rarity = rarity,
             quantity = quantity
         })
     end
     
-    -- Scan Backpack (Unequipped)
-    if PLAYER.Backpack then
-        for _, tool in pairs(PLAYER.Backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                processTool(tool)
-            end
-        end
-    end
-    
-    -- Scan Character (Equipped) if toggle is on
-    if includeEquipped and PLAYER.Character then
-        for _, tool in pairs(PLAYER.Character:GetChildren()) do
-            if tool:IsA("Tool") then
-                processTool(tool)
-            end
-        end
-    end
-    
-    -- Sort: Mythical > Legendary > Rare > Uncommon > Common > Unknown, then by Name
+    -- 3. Sort: Mythical > Legendary > Rare > Uncommon > Common > Unknown, then by Name
     local rarityOrder = {
         ["Mythical"] = 1,
         ["Legendary"] = 2,
@@ -170,7 +193,6 @@ local function getStoredFruits(includeEquipped)
     
     return fruits
 end
-
 -- 5. Build Message Content
 local function buildContent()
     local accountAge = getAccountAge()
