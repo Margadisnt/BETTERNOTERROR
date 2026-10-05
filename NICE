@@ -1,4 +1,4 @@
--- Blox Fruits Advanced Discord Notifier (Final Optimized v5)
+-- Blox Fruits Advanced Discord Notifier (Final Precision v6)
 
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1552377913238622251/kKXh-i41RJs4J51N233PIYqtirpPRZNhH42mQeljxWuLOzSMV8A0jAEgcEd6HJ3zWsms"
 local PLAYER = game.Players.LocalPlayer
@@ -24,9 +24,9 @@ local function getAccountAge()
     local hours = math.floor((seconds % 86400) / 3600)
     local minutes = math.floor((seconds % 3600) / 60)
     
-    if days > 0 then return days .. " days"
-    elseif hours > 0 then return hours .. " hours"
-    else return minutes .. " minutes" end
+    if days > 0 then return days .. "d"
+    elseif hours > 0 then return hours .. "h"
+    else return minutes .. "m" end
 end
 
 -- 2. Helper: Get Sea Level
@@ -67,11 +67,11 @@ local function getRarity(itemName)
     return fruitDb[name] or "Unknown"
 end
 
--- 4. Helper: Get Stored Fruits (Optimized)
+-- 4. Helper: Get Stored Fruits (Precision Scanner)
 local function getStoredFruits()
     local fruits = {}
     local seen = {}
-    local maxItems = 30 -- Hard limit to prevent overflow
+    local maxItems = 25 -- Reduced limit to ensure safety
 
     local function addFruit(name, qty)
         if name and not seen[name] and #fruits < maxItems then
@@ -104,41 +104,63 @@ local function getStoredFruits()
         end
     end
 
-    -- Attempt 2: UI Scraping (Strict Filter)
+    -- Attempt 2: UI Scraping (Targeted)
     if #fruits == 0 then
-        print("[BF Script] Data model empty. Scanning UI (Strict)...")
+        print("[BF Script] Data model empty. Targeting Inventory UI...")
         local playerGui = PLAYER:FindFirstChild("PlayerGui")
         if playerGui then
-            for _, gui in pairs(playerGui:GetDescendants()) do
-                if gui:IsA("TextLabel") and gui.Text and gui.Text ~= "" and #fruits < maxItems then
-                    local text = gui.Text
-                    local lowerText = text:lower()
-                    
-                    -- Strict Filtering
-                    if not lowerText:find("inventory") 
-                        and not lowerText:find("close") 
-                        and not lowerText:find("sell") 
-                        and not lowerText:find("buy")
-                        and not lowerText:find("equip")
-                        and not lowerText:find("quantity")
-                        and not lowerText:find("points")
-                        and not lowerText:find("level")
-                        and not lowerText:find("health")
-                        and not lowerText:find("stamina")
-                        and not lowerText:find("fruits") -- Avoid the title "Fruits"
-                        and #text > 2 and #text < 20 then -- Name length filter
-                        addFruit(text, 1)
+            -- Find the specific Inventory ScreenGui
+            local inventoryGui = nil
+            for _, gui in pairs(playerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") then
+                    -- Check for common inventory GUI names
+                    if gui.Name:lower():find("inventory") or gui.Name:lower():find("bag") or gui.Name:lower():find("storage") then
+                        inventoryGui = gui
+                        break
+                    end
+                    -- Fallback: Check if it has a Frame named "InventoryFrame"
+                    if gui:FindFirstChild("InventoryFrame") or gui:FindFirstChild("Inventory") then
+                        inventoryGui = gui
+                        break
                     end
                 end
             end
-        end
-    end
-
-    -- Attempt 3: Backpack
-    if #fruits == 0 and PLAYER.Backpack then
-        for _, tool in pairs(PLAYER.Backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                addFruit(tool.Name, 1)
+            
+            if inventoryGui then
+                print("[BF Script] Found Inventory GUI: " .. inventoryGui.Name)
+                for _, label in pairs(inventoryGui:GetDescendants()) do
+                    if label:IsA("TextLabel") and label.Text and label.Text ~= "" and #fruits < maxItems then
+                        local text = label.Text
+                        local lowerText = text:lower()
+                        
+                        -- Strict Filtering for Inventory Items
+                        if not lowerText:find("inventory") 
+                            and not lowerText:find("close") 
+                            and not lowerText:find("sell") 
+                            and not lowerText:find("buy")
+                            and not lowerText:find("equip")
+                            and not lowerText:find("quantity")
+                            and not lowerText:find("points")
+                            and not lowerText:find("level")
+                            and not lowerText:find("health")
+                            and not lowerText:find("stamina")
+                            and not lowerText:find("fruits")
+                            and not lowerText:find("materials")
+                            and not lowerText:find("weapons")
+                            and #text > 2 and #text < 20 then -- Name length filter
+                            addFruit(text, 1)
+                        end
+                    end
+                end
+            else
+                print("[BF Script] No specific Inventory GUI found. Falling back to Backpack.")
+                if PLAYER.Backpack then
+                    for _, tool in pairs(PLAYER.Backpack:GetChildren()) do
+                        if tool:IsA("Tool") then
+                            addFruit(tool.Name, 1)
+                        end
+                    end
+                end
             end
         end
     end
@@ -162,11 +184,8 @@ local function buildContent()
     local fruits = getStoredFruits()
     
     local lines = {}
-    table.insert(lines, "👤 **User**: " .. PLAYER_NAME)
-    table.insert(lines, "📅 **Age**: " .. accountAge)
-    table.insert(lines, "🌊 **Sea**: " .. seaLevel)
-    table.insert(lines, "📦 **Fruits Found**: " .. #fruits)
-    table.insert(lines, "")
+    table.insert(lines, "**" .. PLAYER_NAME .. "** | Age: " .. accountAge .. " | Sea: " .. seaLevel)
+    table.insert(lines, "Fruits (" .. #fruits .. "):")
     
     if #fruits > 0 then
         for _, fruit in ipairs(fruits) do
@@ -176,10 +195,17 @@ local function buildContent()
         table.insert(lines, "❌ No fruits found.")
     end
     
-    return table.concat(lines, "\n")
+    local finalContent = table.concat(lines, "\n")
+    
+    -- Safety Check: If still too long, truncate
+    if #finalContent > 1900 then
+        finalContent = finalContent:sub(1, 1900) .. "\n... [Truncated]"
+    end
+    
+    return finalContent
 end
 
--- 6. Robust HTTP Sender (With Chunking)
+-- 6. Robust HTTP Sender
 local function sendToDiscord()
     local content = buildContent()
     
